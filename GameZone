@@ -1,0 +1,47 @@
+from pathlib import Path
+p=Path("/mnt/data/game_zone_working.html")
+s=p.read_text(encoding="utf-8")
+# Strengthen game opening for mobile WebViews: bind listeners instead of inline onclick, add visible fallback and safe event delegation.
+s=s.replace('<button class="gamecard" onclick="openGame(\\'chess\\')">','<button type="button" class="gamecard" data-game="chess">')
+s=s.replace('<button class="gamecard" onclick="openGame(\\'ludo\\')">','<button type="button" class="gamecard" data-game="ludo">')
+s=s.replace('<button class="gamecard" onclick="openGame(\\'ttt\\')">','<button type="button" class="gamecard" data-game="ttt">')
+s=s.replace('<button class="gamecard" onclick="openGame(\\'rps\\')">','<button type="button" class="gamecard" data-game="rps">')
+s=s.replace('<button class="gamecard" onclick="openGame(\\'memory\\')">','<button type="button" class="gamecard" data-game="memory">')
+s=s.replace('<button class="gamecard" onclick="openGame(\\'dice\\')">','<button type="button" class="gamecard" data-game="dice">')
+s=s.replace("function openGame(id){document.getElementById('home').classList.add('hide');ids.forEach(k=>document.getElementById(k).classList.toggle('active',k===id));if(id==='chess')drawChess();if(id==='ttt')drawTTT();if(id==='memory'&&!memCards.length)resetMemory();}",
+"""function openGame(id){
+ if(!ids.includes(id)) return;
+ const home=document.getElementById('home');
+ if(!home) return;
+ home.classList.add('hide');
+ ids.forEach(k=>{const panel=document.getElementById(k);if(panel)panel.classList.toggle('active',k===id);});
+ if(id==='chess')drawChess();
+ if(id==='ttt')drawTTT();
+ if(id==='memory'&&!memCards.length)resetMemory();
+ const panel=document.getElementById(id);
+ if(panel) panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+ document.querySelectorAll('[data-game]').forEach(btn=>{
+   btn.addEventListener('click',()=>openGame(btn.dataset.game));
+   btn.addEventListener('touchend',e=>{e.preventDefault();openGame(btn.dataset.game);},{passive:false});
+ });
+});""")
+# fix chess initial array: spread string containing spaces already fine, but ensure 64 slots
+s=s.replace("const chessStart=['♜','♞','♝','♛','♚','♝','♞','♜',...'♟♟♟♟♟♟♟♟',...' '.repeat(32),'♙','♙','♙','♙','♙','♙','♙','♙','♖','♘','♗','♕','♔','♗','♘','♖'];",
+"""const chessStart=['♜','♞','♝','♛','♚','♝','♞','♜',...'♟♟♟♟♟♟♟♟',...Array(32).fill(' '),...'♙♙♙♙♙♙♙♙','♖','♘','♗','♕','♔','♗','♘','♖'];""")
+# Add safe boot in case script executes before DOM is fully available
+# The script is at end of body already; listeners use DOMContentLoaded but could already have fired in some embed contexts.
+s=s.replace("document.addEventListener('DOMContentLoaded',()=>{\n document.querySelectorAll('[data-game]').forEach(btn=>{\n   btn.addEventListener('click',()=>openGame(btn.dataset.game));\n   btn.addEventListener('touchend',e=>{e.preventDefault();openGame(btn.dataset.game);},{passive:false});\n });\n});",
+"""function bindGameCards(){
+ document.querySelectorAll('[data-game]').forEach(btn=>{
+   if(btn.dataset.bound==='1') return;
+   btn.dataset.bound='1';
+   btn.addEventListener('click',()=>openGame(btn.dataset.game));
+ });
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindGameCards);
+else bindGameCards();""")
+out=Path("/mnt/data/game_zone_fixed.html")
+out.write_text(s,encoding="utf-8")
+print(f"Fixed file created: {out} ({len(s)} characters)")
